@@ -790,6 +790,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
 
 
 def finalize_kernel_command_line_extra(config: Config) -> list[str]:
+    tty = config.architecture.default_serial_tty()
     columns, lines = shutil.get_terminal_size()
     term = finalize_term()
 
@@ -799,9 +800,9 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.hvc0={term}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
+        f"systemd.tty.term.{tty}={term}",
+        f"systemd.tty.columns.{tty}={columns}",
+        f"systemd.tty.rows.{tty}={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
@@ -828,7 +829,7 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
             f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
-            "console=hvc0",
+            f"console={tty}",
             f"TERM={term}",
         ]
     elif config.architecture.is_arm_variant():
@@ -1135,8 +1136,7 @@ def run_qemu(args: Args, config: Config) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
-            "-device", "virtconsole,chardev=console",
+            "-serial", "chardev:console",
             "-mon", "console",
         ]  # fmt: skip
 
