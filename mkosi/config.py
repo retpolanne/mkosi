@@ -449,8 +449,8 @@ class Architecture(StrEnum):
 
     def default_serial_tty(self) -> str:
         return {
-            Architecture.arm      : "ttyAMA0",
-            Architecture.arm64    : "ttyAMA0",
+            Architecture.arm      : "ttyAMA1",
+            Architecture.arm64    : "ttyAMA1",
             Architecture.s390     : "ttysclp0",
             Architecture.s390x    : "ttysclp0",
             Architecture.ppc      : "hvc0",
