@@ -790,6 +790,7 @@ def finalize_state(config: Config, cid: int) -> Iterator[None]:
 
 
 def finalize_kernel_command_line_extra(config: Config) -> list[str]:
+    tty = config.architecture.default_serial_tty()
     columns, lines = shutil.get_terminal_size()
     term = finalize_term()
 
@@ -799,9 +800,9 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
-        f"systemd.tty.term.hvc0={term}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
+        f"systemd.tty.term.{tty}={term}",
+        f"systemd.tty.columns.{tty}={columns}",
+        f"systemd.tty.rows.{tty}={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in config.kernel_command_line_extra):
@@ -828,7 +829,7 @@ def finalize_kernel_command_line_extra(config: Config) -> list[str]:
             f"systemd.tty.term.console={term}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
-            "console=hvc0",
+            f"console={tty}",
             f"TERM={term}",
         ]
     elif config.architecture.is_arm_variant():
@@ -1069,8 +1070,8 @@ def run_qemu(args: Args, config: Config) -> None:
         "-smp", str(config.qemu_smp or os.cpu_count()),
         "-m", f"{config.qemu_mem // 1024**2}M",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
-        "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
-        "-device", "virtio-balloon,free-page-reporting=on",
+        #"-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+        #"-device", "virtio-balloon,free-page-reporting=on",
         "-no-user-config",
         *shm,
     ]  # fmt: skip
@@ -1113,20 +1114,21 @@ def run_qemu(args: Args, config: Config) -> None:
             )
 
         index = list(qemu_device_fds.keys()).index(QemuDeviceNode.vhost_vsock)
-        cmdline += ["-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"]
+        #cmdline += ["-device", f"vhost-vsock-pci,guest-cid={cid},vhostfd={SD_LISTEN_FDS_START + index}"]
 
     cmdline += ["-cpu", "max"]
 
     if config.qemu_gui:
         if config.architecture.is_arm_variant():
-            cmdline += ["-device", "virtio-gpu-pci"]
+            #cmdline += ["-device", "virtio-gpu-pci"]
+            pass
         else:
             cmdline += ["-device", "virtio-vga"]
 
         cmdline += [
             "-nodefaults",
             "-display", "sdl,gl=on",
-            "-audio", "driver=pipewire,model=virtio",
+            #"-audio", "driver=pipewire,model=virtio",
         ]  # fmt: skip
     else:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
@@ -1135,8 +1137,7 @@ def run_qemu(args: Args, config: Config) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            "-device", "virtio-serial-pci,id=mkosi-virtio-serial-pci",
-            "-device", "virtconsole,chardev=console",
+            "-serial", "chardev:console",
             "-mon", "console",
         ]  # fmt: skip
 
@@ -1218,9 +1219,9 @@ def run_qemu(args: Args, config: Config) -> None:
                 )
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
-                    "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
+                    #"-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]  # fmt: skip
-                kcl += ["root=root", "rootfstype=virtiofs"]
+                #kcl += ["root=root", "rootfstype=virtiofs"]
 
         credentials = finalize_credentials(config)
 
@@ -1229,7 +1230,7 @@ def run_qemu(args: Args, config: Config) -> None:
         ) -> None:
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
-                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
+                #"-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={tag}",
             ]  # fmt: skip
 
             if "fstab.extra" not in credentials:
@@ -1271,14 +1272,15 @@ def run_qemu(args: Args, config: Config) -> None:
             )
 
         if want_scratch(config) or config.output_format in (OutputFormat.disk, OutputFormat.esp):
-            cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
+            #cmdline += ["-device", "virtio-scsi-pci,id=mkosi"]
+            pass
 
         if want_scratch(config):
             scratch = stack.enter_context(generate_scratch_fs(config))
             cache = "cache.writeback=on,cache.direct=on,cache.no-flush=yes,aio=io_uring"
             cmdline += [
                 "-drive", f"if=none,id=scratch,file={scratch},format=raw,discard=on,{cache}",
-                "-device", "virtio-blk-pci,drive=scratch",
+                #"-device", "virtio-blk-pci,drive=scratch",
             ]  # fmt: skip
             kcl += [f"systemd.mount-extra=LABEL=scratch:/var/tmp:{config.distribution.filesystem()}"]
 
@@ -1305,7 +1307,7 @@ def run_qemu(args: Args, config: Config) -> None:
 
             cmdline += [
                 "-drive", f"if=none,id=mkosi,file={fname},format=raw,discard=on,{cache}",
-                "-device", f"{device_type},drive=mkosi,bootindex=1",
+                #"-device", f"{device_type},drive=mkosi,bootindex=1",
             ]  # fmt: skip
 
         if config.qemu_swtpm == ConfigFeature.enabled or (

@@ -447,6 +447,17 @@ class Architecture(StrEnum):
 
         return a
 
+    def default_serial_tty(self) -> str:
+        return {
+            Architecture.arm      : "ttyAMA0",
+            Architecture.arm64    : "ttyAMA0",
+            Architecture.s390     : "ttysclp0",
+            Architecture.s390x    : "ttysclp0",
+            Architecture.ppc      : "hvc0",
+            Architecture.ppc64    : "hvc0",
+            Architecture.ppc64_le : "hvc0",
+        }.get(self, "ttyS0")
+
     def supports_smbios(self, firmware: QemuFirmware) -> bool:
         if self.is_x86_variant():
             return True
@@ -454,7 +465,7 @@ class Architecture(StrEnum):
         return self.is_arm_variant() and firmware.is_uefi()
 
     def supports_fw_cfg(self) -> bool:
-        return self.is_x86_variant() or self.is_arm_variant()
+        return self.is_x86_variant() or self.is_arm_variant() and False
 
     def supports_smm(self) -> bool:
         return self.is_x86_variant()
